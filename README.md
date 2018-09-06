@@ -146,6 +146,8 @@ contextual data is send with each log trace:
 - `extra.ctx.upstream_url`: The full URL of the git project that is being mirrored
 - `extra.state`: The current state of retries for this request (was `extra.num_try`)
 
+If GELF_SERVER is not set, logs are output to stderr in human readable form
+
 # License
 
 MIT
