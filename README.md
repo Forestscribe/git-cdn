@@ -59,12 +59,23 @@ Please follow recommended state of the art configuration: https://mozilla.github
 The pyinstaller binaries should work on any distro. Only debian has been tested, via the docker image.
 After downloading the git repository or archive from github:
 
-    export GITSERVER_UPSTREAM=https://gitlab.mycompany.com/
+    export GITSERVER_UPSTREAM=https://gitlab.example.com/
     export WORKING_DIRECTORY=/var/lib/git-cdn
     export MAX_CONNECTIONS=100
     dist/gitcdn/gitcdn
 
 Configuring systemd service is left as the reader exercice.
+
+## How users use it?
+
+Tell you users to configure HTTPS authentication for their git server (depends on the server)
+Then insert following snippet in users ~/.gitconfig
+
+    [url "https://gitcdn.intra.example.com/"]
+    insteadOf = git@gitlab.example.com:
+    insteadOf = https://gitlab.example.com/
+
+Then users can just use the git clone commands provided by the git server.
 
 # How it works
 
