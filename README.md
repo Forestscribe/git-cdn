@@ -82,36 +82,37 @@ Git-cdn always use local git in order to fetch new data, in order to optimistica
 
 ## Retry States
 
-    If the local cache fails to address the upload-pack request, several retries are made, and
+If the local cache fails to address the upload-pack request, several retries are made, and
 
-    - If the directory does not exist, directly go to state 3
-    - state 1: Retry after taking the write lock. Taking the write lock means a parallel request may have updated the database in parallel. We retry without talking to upstream
-    - state 2: Retry after fetching every branches of upstream
-    - state 3: Assuming the repository is corrupted, we remove the directory and clone from scratch
-    - state 4: Failed to answer to the request, give up and forward the error
+- If the directory does not exist, directly go to state 3
+- state 1: Retry after taking the write lock. Taking the write lock means a parallel request may have updated the database in parallel. We retry without talking to upstream
+- state 2: Retry after fetching every branches of upstream
+- state 3: Assuming the repository is corrupted, we remove the directory and clone from scratch
+- state 4: Failed to answer to the request, give up and forward the error
 
 ## Locking
 
-    Multiple reader, exclusive writer lock is used perc p repository, on top of git own locking mechanism.
-    This ensures that only one client is triggering the refresh of a repository copy.
-    If the repository does not require refresh, several client can build a pack in parallel.
+Multiple reader, exclusive writer lock is used perc p repository, on top of git own locking mechanism.
+This ensures that only one client is triggering the refresh of a repository copy.
+If the repository does not require refresh, several client can build a pack in parallel.
 
 # LFS
 
-    Git-cdn supports git-lfs.
+Git-cdn supports git-lfs.
 
-    - Object upload is just forwarded without any smarts.
-    - Object download batch commands are hooked, so that the client request on git-cdn host instead of original lfs server.
+- Object upload is just forwarded without any smarts.
+- Object download batch commands are hooked, so that the client request on git-cdn host instead of original lfs server.
 
-    - Other LFS commands (e.g locks) are just forwarded
+- Other LFS commands (e.g locks) are just forwarded
 
-    - Objects are mirrored during the download batch. (see git-lfs doc for details) The batch command does not end until all the files of the batch have been downloaded
+- Objects are mirrored during the download batch. (see git-lfs doc for details) The batch command does not end until all the files of the batch have been downloaded
 
-    - Then when a client request an LFS file, the file is directly served from the FS as it should already have been mirrored via the batch command.
+- Then when a client request an LFS file, the file is directly served from the FS as it should already have been mirrored via the batch command.
 
-    - For performance reasons, the LFS file requests are not authenticated.
-        We use the fact that if the user knows the oid (sha256), it has already authenticated to git repository.
-        sha256 is considered large enough to be resistent to bruteforce.
+- For performance reasons, the LFS file requests are not authenticated.
+  We use the fact that if the user knows the oid (sha256), it has already authenticated to git repository.
+  sha256 is considered large enough to be resistent to brute force.
+  LFS objects could be served directly by nginx (as long as directory listing is disabled), but this has not been tested yet.
 
 # Log and Trace
 
