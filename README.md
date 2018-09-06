@@ -4,7 +4,7 @@ a CDN for git
 
 A git+http(s) proxy for optimising git server usage.
 
-![Usage](img/git-cdn.png)
+![Usage](https://github.com/Forestscribe/git-cdn/raw/master/img/git-cdn.png)
 
 - Fully stateless for horizontal scalability
 
@@ -23,17 +23,54 @@ A git+http(s) proxy for optimising git server usage.
 
 - Tested with gitlab-ce 11.2, but should work with any BasicAuth git+http(s) server
 
-# Run via docker
+- Supports git-LFS for big files.
 
-    docker run -p 8000:8000 -e GITSERVER_UPSTREAM=https://gitlab.mycompany.com/ -e WORKING_DIRECTORY=~/git-proxy forestscribe/git-cdn
+# Deploy
 
 It is recommended to put an nginx frontend for the SSL encyption
+Please follow recommended state of the art configuration: https://mozilla.github.io/server-side-tls/ssl-config-generator/
+
+    server {
+        [...SSL configuration as per Mozilla best practice]
+
+        location / {
+            proxy_pass http://localhost:8000;
+
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+            # make sure we don't buffer and timeout after longer time
+            client_max_body_size 1G;
+            client_body_buffer_size 1m;
+            proxy_intercept_errors off;
+            proxy_buffering off;
+            proxy_read_timeout 300;
+        }
+
+    }
+
+## Run via docker
+
+    docker run -v /path/to/mirror/repos:/workdir -p localhost:8000:8000 -e MAX_CONNECTIONS=100 -e GITSERVER_UPSTREAM=https://gitlab.mycompany.com/ -e WORKING_DIRECTORY=/workdir forestscribe/git-cdn
+
+## Run via pyinstaller binary
+
+The pyinstaller binaries should work on any distro. Only debian has been tested, via the docker image.
+After downloading the git repository or archive from github:
+
+    export GITSERVER_UPSTREAM=https://gitlab.mycompany.com/
+    export WORKING_DIRECTORY=/var/lib/git-cdn
+    export MAX_CONNECTIONS=100
+    dist/gitcdn/gitcdn
+
+Configuring systemd service is left as the reader exercice.
 
 # How it works
 
 Git HTTP protocol is divided into two phases.
 
-![Usage](img/git-cdn2.png)
+![Protocol Diagram](https://raw.githubusercontent.com/Forestscribe/git-cdn/master/img/git-cdn2.png)
 
 During the first phase (GET), the client verify that the server is implementing RPC, and ask the list of refs that the server has for that repository.
 For that phase, git-cdn acts as a simple proxy, it does not interfer in anyway with the results, nor uses any cached data. This allow to ensure that the client always has the latest commit.
@@ -53,12 +90,36 @@ Git-cdn always use local git in order to fetch new data, in order to optimistica
     - state 3: Assuming the repository is corrupted, we remove the directory and clone from scratch
     - state 4: Failed to answer to the request, give up and forward the error
 
+## Locking
+
+    Multiple reader, exclusive writer lock is used perc p repository, on top of git own locking mechanism.
+    This ensures that only one client is triggering the refresh of a repository copy.
+    If the repository does not require refresh, several client can build a pack in parallel.
+
+# LFS
+
+    Git-cdn supports git-lfs.
+
+    - Object upload is just forwarded without any smarts.
+    - Object download batch commands are hooked, so that the client request on git-cdn host instead of original lfs server.
+
+    - Other LFS commands (e.g locks) are just forwarded
+
+    - Objects are mirrored during the download batch. (see git-lfs doc for details) The batch command does not end until all the files of the batch have been downloaded
+
+    - Then when a client request an LFS file, the file is directly served from the FS as it should already have been mirrored via the batch command.
+
+    - For performance reasons, the LFS file requests are not authenticated.
+        We use the fact that if the user knows the oid (sha256), it has already authenticated to git repository.
+        sha256 is considered large enough to be resistent to bruteforce.
+
 # Log and Trace
 
 Git-cdn uses structured logging methodology to have context based structured logging.
 As git-cdn is massively parallel using asyncio, this is necessary in order to follow any problematic request.
 
-At the moment, only the main logic upload_pack.py is using contextual logging.
+The main logic upload_pack.py is using contextual logging, and allow to follow the update of a repository, triggered by a user
+access logs are also output as structured logging.
 
 In order to enable structure logging you need to configure a GELF server and GELF port as environment variables
 
@@ -76,3 +137,7 @@ contextual data is send with each log trace:
 # License
 
 MIT
+
+# Source Code
+
+TBD
